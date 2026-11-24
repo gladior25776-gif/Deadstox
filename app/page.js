@@ -18,11 +18,9 @@ const PRODUCTS = [
   { id: 6, name: 'Crossed Out Tee', cat: 'Tee', price: 1699, note: 'Heavyweight cotton, relaxed fit', tee: '#e9e1cf', ink: '#7a0f16', art: 5, graphic: '' },
 ];
 const MARQUEE_1 = ['Limited drops', 'Heavy cotton', 'Street royalty', 'Never restocked'];
-const MARQUEE_2 = ['DEADSTOX', 'Dead on arrival', 'Worn by kings', 'DEADSTOX'];
 /* ========================================= */
 
-const STORY = 'Born on the street. Crowned in cotton. DEADSTOX makes limited tees in heavyweight fabric with bold graphics and a clean fit. Every drop is small, so what you wear stays rare.'.split(' ');
-const LINKS = [['Story', '#story'], ['Collection', '#collection'], ['Lookbook', '#lookbook'], ['Drop', '#drop']];
+const LINKS = [['Collection', '#collection'], ['Lookbook', '#lookbook'], ['Drop', '#drop']];
 // Lookbook: tee = product id shown. Add real photos later with img: '/lookbook/look1.jpg'
 const LOOKBOOK = [
   { title: 'After dark', line: 'Black on black. Quiet, loud, unmistakable.', tee: 1, img: '' },
@@ -109,12 +107,11 @@ function Marquee({ items, speed = 36, rev = false, outline = false }) {
   const paused = useRef(false);
   useEffect(() => {
     const el = track.current;
-    let x = 0, last = performance.now(), raf, py = scrollY, v = 0;
+    let x = 0, last = performance.now(), raf;
     const tick = (t) => {
       const dt = Math.min(t - last, 50); last = t;
       const w = el.firstChild.offsetWidth;
-      const y = scrollY; v += (Math.abs(y - py) - v) * 0.1; py = y;
-      if (!paused.current) x += (rev ? 1 : -1) * speed * (1 + Math.min(v * 0.1, 3)) * dt / 1000;
+      if (!paused.current) x += (rev ? 1 : -1) * speed * dt / 1000;
       if (x <= -w) x += w;
       if (x > 0) x -= w;
       el.style.transform = `translate3d(${x}px,0,0)`;
@@ -125,7 +122,7 @@ function Marquee({ items, speed = 36, rev = false, outline = false }) {
   }, [speed, rev]);
   const grp = (k) => (
     <div className="grp" key={k} aria-hidden={k === 1}>
-      {[0, 1, 2].flatMap((n) => items.map((t) => <span className="mi" key={n + t}>{t}<Crest className="mk" /></span>))}
+      {[0, 1, 2, 3, 4].flatMap((n) => items.map((t) => <span className="mi" key={n + t}>{t}<Crest className="mk" /></span>))}
     </div>
   );
   return (
@@ -133,41 +130,6 @@ function Marquee({ items, speed = 36, rev = false, outline = false }) {
       <div className="mq-track" ref={track}>{grp(0)}{grp(1)}</div>
     </div>
   );
-}
-
-/* Custom cursor + magnetic buttons + hero mouse parallax (fine pointers only) */
-function Cursor() {
-  const dot = useRef(null), ring = useRef(null), lab = useRef(null);
-  useEffect(() => {
-    if (!matchMedia('(hover:hover) and (pointer:fine)').matches) return;
-    const root = document.documentElement;
-    root.classList.add('has-cur');
-    let mx = -100, my = -100, rx = -100, ry = -100, raf;
-    const move = (e) => {
-      mx = e.clientX; my = e.clientY;
-      root.style.setProperty('--mx', mx + 'px'); root.style.setProperty('--my', my + 'px');
-      root.style.setProperty('--tx', (mx / innerWidth - 0.5).toFixed(3)); root.style.setProperty('--ty', (my / innerHeight - 0.5).toFixed(3));
-      const t = e.target.closest ? e.target.closest('[data-cur]') : null;
-      ring.current.classList.toggle('big', !!t);
-      lab.current.textContent = t ? t.dataset.cur : '';
-      document.querySelectorAll('.mag').forEach((el) => {
-        const r = el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-        const near = Math.hypot(mx - cx, my - cy) < Math.max(r.width, r.height) * 0.9;
-        el.style.translate = near ? `${(mx - cx) * 0.28}px ${(my - cy) * 0.35}px` : '';
-      });
-    };
-    const loop = () => {
-      rx += (mx - rx) * 0.16; ry += (my - ry) * 0.16;
-      ring.current.style.transform = `translate3d(${rx}px,${ry}px,0)`;
-      dot.current.style.transform = `translate3d(${mx}px,${my}px,0)`;
-      raf = requestAnimationFrame(loop);
-    };
-    const down = () => ring.current.classList.add('press'), up = () => ring.current.classList.remove('press');
-    window.addEventListener('mousemove', move); window.addEventListener('mousedown', down); window.addEventListener('mouseup', up);
-    raf = requestAnimationFrame(loop);
-    return () => { cancelAnimationFrame(raf); root.classList.remove('has-cur'); window.removeEventListener('mousemove', move); window.removeEventListener('mousedown', down); window.removeEventListener('mouseup', up); };
-  }, []);
-  return (<><div className="cur-dot" ref={dot} /><div className="cur-ring" ref={ring}><span ref={lab} /></div></>);
 }
 
 function Card({ p, onOpen }) {
@@ -179,7 +141,7 @@ function Card({ p, onOpen }) {
   };
   return (
     <article className="card">
-      <button ref={f} className="frame" data-cur="View" onMouseMove={mv} onMouseLeave={() => (f.current.style.transform = '')} onClick={(e) => onOpen(p, e)} aria-label={`View ${p.name}`}>
+      <button ref={f} className="frame" onMouseMove={mv} onMouseLeave={() => (f.current.style.transform = '')} onClick={(e) => onOpen(p, e)} aria-label={`View ${p.name}`}>
         <Visual p={p} /><span className="glare" />
       </button>
       <div className="meta"><div><h3>{p.name}</h3><small>{p.note}</small></div><span>{money(p.price)}</span></div>
@@ -201,7 +163,7 @@ export default function Page() {
   const [qty, setQty] = useState(1);
   const [err, setErr] = useState('');
   const [toast, setToast] = useState('');
-  const lenis = useRef(null), storyRef = useRef(null), hsRef = useRef(null), trackRef = useRef(null), pdpRef = useRef(null), shown = useRef(null);
+  const lenis = useRef(null), hsRef = useRef(null), trackRef = useRef(null), pdpRef = useRef(null), shown = useRef(null);
 
   useEffect(() => {
     let raf; const t0 = performance.now();
@@ -219,19 +181,18 @@ export default function Page() {
     const l = new Lenis({ lerp: 0.075, wheelMultiplier: 0.9 });
     lenis.current = l;
     const root = document.documentElement;
-    const words = [...document.querySelectorAll('.sw')];
     const lb = [...document.querySelectorAll('.lb-item')];
     let last = 0, desk = false, raf;
+    const mm = (e) => {
+      root.style.setProperty('--mx', e.clientX + 'px'); root.style.setProperty('--my', e.clientY + 'px');
+      root.style.setProperty('--tx', (e.clientX / innerWidth - 0.5).toFixed(3)); root.style.setProperty('--ty', (e.clientY / innerHeight - 0.5).toFixed(3));
+    };
+    if (matchMedia('(hover:hover) and (pointer:fine)').matches) window.addEventListener('mousemove', mm);
     const upd = (y) => {
       root.style.setProperty('--sy', y);
       root.style.setProperty('--p', (y / Math.max(1, root.scrollHeight - innerHeight)).toFixed(4));
       if (y > last + 3 && y > 160) setHide(true); else if (y < last - 3 || y < 160) setHide(false);
       if (Math.abs(y - last) > 3) last = y;
-      const st = storyRef.current;
-      if (st) {
-        const r = st.getBoundingClientRect(), p = clamp((innerHeight * 0.85 - r.top) / (r.height * 0.85));
-        words.forEach((w, i) => { w.style.opacity = (0.14 + 0.86 * clamp(p * words.length * 1.1 - i)).toFixed(3); });
-      }
       const hs = hsRef.current, tr = trackRef.current;
       if (hs && desk) {
         const r = hs.getBoundingClientRect(), pr = clamp(-r.top / (hs.offsetHeight - innerHeight));
@@ -243,7 +204,7 @@ export default function Page() {
         el.style.transform = `scale(${1 - 0.07 * t})`; el.style.filter = `brightness(${1 - 0.45 * t})`;
       });
       let a = '';
-      ['story', 'collection', 'lookbook', 'drop'].forEach((id) => { const e = document.getElementById(id); if (e && e.getBoundingClientRect().top < innerHeight * 0.45) a = id; });
+      ['collection', 'lookbook', 'drop'].forEach((id) => { const e = document.getElementById(id); if (e && e.getBoundingClientRect().top < innerHeight * 0.45) a = id; });
       setActive((p) => (p === a ? p : a));
     };
     const size = () => {
@@ -258,7 +219,7 @@ export default function Page() {
     size(); window.addEventListener('resize', size); window.addEventListener('load', size);
     const io = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && e.target.classList.add('in')), { threshold: 0.15 });
     document.querySelectorAll('[data-r],[data-s]').forEach((el) => io.observe(el));
-    return () => { cancelAnimationFrame(raf); l.destroy(); io.disconnect(); window.removeEventListener('resize', size); window.removeEventListener('load', size); };
+    return () => { cancelAnimationFrame(raf); l.destroy(); io.disconnect(); window.removeEventListener('resize', size); window.removeEventListener('load', size); window.removeEventListener('mousemove', mm); };
   }, []);
 
   useEffect(() => {
@@ -305,7 +266,6 @@ export default function Page() {
 
   return (
     <>
-      <Cursor />
       <div className="progress" />
 
       {!gone && (
@@ -321,14 +281,14 @@ export default function Page() {
 
       <header className={`nav ${hide && !menu ? 'hide' : ''}`}>
         <div className="pill">
-          <button className="logo mag" data-cur="" onClick={() => go(0)} aria-label="DEADSTOX home"><img src={LOGO} alt="DEADSTOX" /></button>
+          <button className="logo" onClick={() => go(0)} aria-label="DEADSTOX home"><img src={LOGO} alt="DEADSTOX" /></button>
           <nav className="links">
             {LINKS.map(([t, h]) => (
-              <a key={t} href={h} data-cur="" className={`roll ${active === h.slice(1) ? 'on' : ''}`} data-t={t} onClick={(e) => { e.preventDefault(); go(h); }}><span>{t}</span></a>
+              <a key={t} href={h} className={`roll ${active === h.slice(1) ? 'on' : ''}`} data-t={t} onClick={(e) => { e.preventDefault(); go(h); }}><span>{t}</span></a>
             ))}
-            <a className="roll" data-cur="" data-t="Instagram" href={IG} target="_blank" rel="noopener noreferrer"><span>Instagram</span></a>
+            <a className="roll" data-t="Instagram" href={IG} target="_blank" rel="noopener noreferrer"><span>Instagram</span></a>
           </nav>
-          <button className="bag mag" data-cur="" onClick={() => setBagOpen(true)}>Bag <b>{count}</b></button>
+          <button className="bag" onClick={() => setBagOpen(true)}>Bag <b>{count}</b></button>
           <button className={`burger ${menu ? 'x' : ''}`} onClick={() => setMenu(!menu)} aria-label="Menu"><i /><i /></button>
         </div>
       </header>
@@ -346,27 +306,22 @@ export default function Page() {
           </div>
           <p className={`tag ${R}`}><span>Street royalty, made to last.</span></p>
           <div className={`hero-cta ${R}`}>
-            <button className="cta mag" data-cur="" onClick={() => go('#collection')}><span>Shop the drop</span></button>
-            <a className="cta ghost mag" data-cur="" href={IG} target="_blank" rel="noopener noreferrer"><span>Follow @deadstox.in</span></a>
+            <button className="cta" onClick={() => go('#collection')}><span>Shop the drop</span></button>
+            <a className="cta ghost" href={IG} target="_blank" rel="noopener noreferrer"><span>Follow @deadstox.in</span></a>
           </div>
           <div className="scroll-line" />
         </section>
 
         <div className="mq" aria-label="Limited drops. Heavy cotton. Street royalty. Never restocked.">
-          <Marquee items={MARQUEE_1} speed={34} />
-          <Marquee items={MARQUEE_2} speed={26} rev outline />
+          <Marquee items={MARQUEE_1} speed={30} />
         </div>
-
-        <section className="story" id="story" ref={storyRef}>
-          <p className="big">{STORY.map((w, i) => <span className="sw" key={i}>{w} </span>)}</p>
-        </section>
 
         <section className="hs" id="collection" ref={hsRef}>
           <div className="hs-pin">
             <div className="hs-head"><Split text="The tee collection" /><p data-r>Six tees in the current drop. Tap a tee to choose your size.</p></div>
             <div className="hs-track" ref={trackRef}>
               {PRODUCTS.map((p) => <Card key={p.id} p={p} onOpen={open} />)}
-              <div className="card end"><h3>More drops soon</h3><p>Follow us to see the next one first.</p><a className="cta ghost mag" data-cur="" href={IG} target="_blank" rel="noopener noreferrer"><span>@deadstox.in</span></a></div>
+              <div className="card end"><h3>More drops soon</h3><p>Follow us to see the next one first.</p><a className="cta ghost" href={IG} target="_blank" rel="noopener noreferrer"><span>@deadstox.in</span></a></div>
             </div>
           </div>
         </section>
@@ -376,7 +331,7 @@ export default function Page() {
           <div className="lb-stack">
             {LOOKBOOK.map((l) => { const p = PRODUCTS.find((x) => x.id === l.tee); return (
               <article className="lb-item" key={l.title} style={l.img ? { backgroundImage: `linear-gradient(90deg,rgba(8,4,5,.85),rgba(8,4,5,.15)),url(${l.img})` } : undefined}>
-                <div className="lb-text"><h3>{l.title}</h3><p>{l.line}</p><button className="cta ghost mag" data-cur="" onClick={(e) => open(p, e)}><span>View {p.name}</span></button></div>
+                <div className="lb-text"><h3>{l.title}</h3><p>{l.line}</p><button className="cta ghost" onClick={(e) => open(p, e)}><span>View {p.name}</span></button></div>
                 <div className="lb-vis"><Visual p={p} /></div>
               </article>
             ); })}
@@ -388,7 +343,7 @@ export default function Page() {
             <Crest className="bgcrown" />
             <Split text="Every design sells out once." />
             <p>We print small batches and never restock a design. When a tee is gone, it is gone.</p>
-            <button className="cta mag" data-cur="" onClick={() => go('#collection')}><span>Shop now</span></button>
+            <button className="cta" onClick={() => go('#collection')}><span>Shop now</span></button>
           </div>
         </section>
 
@@ -417,7 +372,7 @@ export default function Page() {
 
       <section className={`pdp ${sel ? 'show' : ''}`} aria-hidden={!sel} role="dialog" aria-modal="true">
         {cur && (<>
-          <button className="pdp-x" onClick={close} data-cur="Close">Close</button>
+          <button className="pdp-x" onClick={close}>Close</button>
           <div className="pdp-scroll" ref={pdpRef} data-lenis-prevent>
             <div className="pdp-main">
               <div className="pdp-vis" onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(), x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5; e.currentTarget.firstChild.style.transform = `perspective(1200px) rotateY(${x * 16}deg) rotateX(${-y * 16}deg)`; }} onMouseLeave={(e) => (e.currentTarget.firstChild.style.transform = '')}>
@@ -445,7 +400,7 @@ export default function Page() {
               <h3>You may also like</h3>
               <div className="pdp-row">
                 {PRODUCTS.filter((o) => o.id !== cur.id).slice(0, 3).map((o) => (
-                  <button className="rel" key={o.id} data-cur="View" onClick={() => open(o)}><div className="rel-v"><Visual p={o} /></div><span>{o.name}</span><b>{money(o.price)}</b></button>
+                  <button className="rel" key={o.id} onClick={() => open(o)}><div className="rel-v"><Visual p={o} /></div><span>{o.name}</span><b>{money(o.price)}</b></button>
                 ))}
               </div>
             </div>
@@ -454,7 +409,7 @@ export default function Page() {
       </section>
 
       <aside className={`drawer ${bagOpen ? 'show' : ''}`} aria-label="Shopping bag">
-        <div className="d-head"><h3>Your bag</h3><button className="xb" onClick={() => setBagOpen(false)} aria-label="Close" data-cur="">×</button></div>
+        <div className="d-head"><h3>Your bag</h3><button className="xb" onClick={() => setBagOpen(false)} aria-label="Close">×</button></div>
         <div className="d-list" data-lenis-prevent>
           {!cart.length && <p className="empty">Your bag is empty. <button onClick={() => go('#collection')}>Browse the collection</button></p>}
           {cart.map((i) => (
