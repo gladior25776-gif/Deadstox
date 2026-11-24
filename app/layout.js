@@ -1,8 +1,8 @@
-import { Cormorant_Garamond, Jost } from 'next/font/google';
+import { Bodoni_Moda, Syne } from 'next/font/google';
 import './globals.css';
 
-const display = Cormorant_Garamond({ subsets: ['latin'], weight: ['300', '400', '500', '600'], style: ['normal', 'italic'], variable: '--display' });
-const ui = Jost({ subsets: ['latin'], weight: ['300', '400', '500'], variable: '--ui' });
+const display = Bodoni_Moda({ subsets: ['latin'], style: ['normal', 'italic'], variable: '--display' });
+const ui = Syne({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--ui' });
 
 export const metadata = { title: 'DEADSTOX | Street royalty, made to last', description: 'Limited-run premium tees. New drops, never restocked.' };
 export const viewport = { width: 'device-width', initialScale: 1, themeColor: '#080405' };
