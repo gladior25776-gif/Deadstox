@@ -68,35 +68,34 @@ function Embers() {
   useEffect(() => {
     if (matchMedia('(prefers-reduced-motion:reduce)').matches) return;
     const c = cv.current, g = c.getContext('2d');
-    let W = 0, H = 0, raf, on = true, mx = -999, my = -999, ps = [];
-    const N = innerWidth < 760 ? 36 : 80;
-    const mk = (init) => ({ x: Math.random() * W, y: init ? Math.random() * H : H + 10, r: Math.random() * 2.2 + 0.5, vy: Math.random() * 0.6 + 0.25, vx: (Math.random() - 0.5) * 0.3, ph: Math.random() * 6.28, gold: Math.random() < 0.35 });
-    const size = () => {
-      const d = Math.min(devicePixelRatio || 1, 2);
-      W = c.clientWidth; H = c.clientHeight; c.width = W * d; c.height = H * d; g.setTransform(d, 0, 0, d, 0, 0);
-      if (!ps.length) ps = Array.from({ length: N }, () => mk(true));
+    const sprite = (rgb) => {
+      const s = document.createElement('canvas'); s.width = s.height = 32;
+      const x = s.getContext('2d'), gr = x.createRadialGradient(16, 16, 0, 16, 16, 16);
+      gr.addColorStop(0, `rgba(${rgb},1)`); gr.addColorStop(0.35, `rgba(${rgb},.45)`); gr.addColorStop(1, `rgba(${rgb},0)`);
+      x.fillStyle = gr; x.fillRect(0, 0, 32, 32); return s;
     };
+    const sp = [sprite('209,22,30'), sprite('200,162,74')];
+    let W = 0, H = 0, raf, on = true, ps = [];
+    const N = innerWidth < 760 ? 16 : 36;
+    const mk = (init) => ({ x: Math.random() * W, y: init ? Math.random() * H : H + 10, r: Math.random() * 5 + 3, vy: Math.random() * 0.5 + 0.25, vx: (Math.random() - 0.5) * 0.25, ph: Math.random() * 6.28, k: Math.random() < 0.35 ? 1 : 0 });
+    const size = () => { W = c.clientWidth; H = c.clientHeight; c.width = W; c.height = H; if (!ps.length) ps = Array.from({ length: N }, () => mk(true)); };
     size();
-    const mv = (e) => { const r = c.getBoundingClientRect(); mx = e.clientX - r.left; my = e.clientY - r.top; };
     const draw = (t) => {
       raf = requestAnimationFrame(draw);
       if (!on) return;
       g.clearRect(0, 0, W, H);
       for (const p of ps) {
-        const dx = p.x - mx, dy = p.y - my, d = Math.hypot(dx, dy) || 1;
-        if (d < 150) { p.x += (dx / d) * (150 - d) * 0.03; p.y += (dy / d) * (150 - d) * 0.03; }
         p.y -= p.vy; p.x += p.vx + Math.sin(t * 0.0008 + p.ph) * 0.25;
         if (p.y < -10) Object.assign(p, mk(false));
-        const a = clamp(p.y / H) * 0.95 * (0.6 + 0.4 * Math.sin(t * 0.004 + p.ph));
-        g.beginPath(); g.fillStyle = p.gold ? `rgba(230,207,142,${a})` : `rgba(235,40,40,${a})`;
-        g.shadowBlur = 10; g.shadowColor = p.gold ? '#c8a24a' : '#d1161e';
-        g.arc(p.x, p.y, p.r, 0, 6.283); g.fill();
+        g.globalAlpha = clamp(p.y / H) * (0.55 + 0.45 * Math.sin(t * 0.004 + p.ph));
+        g.drawImage(sp[p.k], p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
       }
+      g.globalAlpha = 1;
     };
     raf = requestAnimationFrame(draw);
     const io = new IntersectionObserver(([e]) => { on = e.isIntersecting; }); io.observe(c);
-    window.addEventListener('resize', size); window.addEventListener('mousemove', mv);
-    return () => { cancelAnimationFrame(raf); io.disconnect(); window.removeEventListener('resize', size); window.removeEventListener('mousemove', mv); };
+    window.addEventListener('resize', size);
+    return () => { cancelAnimationFrame(raf); io.disconnect(); window.removeEventListener('resize', size); };
   }, []);
   return <canvas className="embers" ref={cv} aria-hidden="true" />;
 }
@@ -107,10 +106,10 @@ function Marquee({ items, speed = 36, rev = false, outline = false }) {
   const paused = useRef(false);
   useEffect(() => {
     const el = track.current;
-    let x = 0, last = performance.now(), raf;
+    let x = 0, last = performance.now(), raf, w = el.firstChild.offsetWidth;
+    const ro = new ResizeObserver(() => { w = el.firstChild.offsetWidth; }); ro.observe(el.firstChild);
     const tick = (t) => {
       const dt = Math.min(t - last, 50); last = t;
-      const w = el.firstChild.offsetWidth;
       if (!paused.current) x += (rev ? 1 : -1) * speed * dt / 1000;
       if (x <= -w) x += w;
       if (x > 0) x -= w;
@@ -118,7 +117,7 @@ function Marquee({ items, speed = 36, rev = false, outline = false }) {
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
   }, [speed, rev]);
   const grp = (k) => (
     <div className="grp" key={k} aria-hidden={k === 1}>
@@ -149,8 +148,31 @@ function Card({ p, onOpen }) {
   );
 }
 
-export default function Page() {
+function Preloader({ ready, onDone }) {
   const [pct, setPct] = useState(0);
+  useEffect(() => {
+    let raf; const t0 = performance.now();
+    const tick = (t) => {
+      const p = clamp((t - t0) / 1500);
+      setPct(Math.round(100 * (1 - Math.pow(1 - p, 2.2))));
+      if (p < 1) raf = requestAnimationFrame(tick); else setTimeout(onDone, 150);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  return (
+    <div className={`pre ${ready ? 'done' : ''}`} aria-hidden="true">
+      <i className="pa" /><i className="pb" />
+      <div className="pc">
+        <Crest className="crown" />
+        <div className="pl-logo"><img src={LOGO} alt="" draggable={false} /><img className="fill" src={LOGO} alt="" draggable={false} style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }} /></div>
+        <div className="num">{pct}</div>
+      </div>
+    </div>
+  );
+}
+
+export default function Page() {
   const [ready, setReady] = useState(false);
   const [gone, setGone] = useState(false);
   const [cart, setCart] = useState([]);
@@ -165,61 +187,63 @@ export default function Page() {
   const [toast, setToast] = useState('');
   const lenis = useRef(null), hsRef = useRef(null), trackRef = useRef(null), pdpRef = useRef(null), shown = useRef(null);
 
-  useEffect(() => {
-    let raf; const t0 = performance.now();
-    const tick = (t) => {
-      const p = clamp((t - t0) / 2400);
-      setPct(Math.round(100 * (1 - Math.pow(1 - p, 2.2))));
-      if (p < 1) raf = requestAnimationFrame(tick); else setTimeout(() => setReady(true), 300);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  useEffect(() => { if (ready) { const t = setTimeout(() => setGone(true), 2000); return () => clearTimeout(t); } }, [ready]);
+  useEffect(() => { if (ready) { const t = setTimeout(() => setGone(true), 1500); return () => clearTimeout(t); } }, [ready]);
 
   useEffect(() => {
-    const l = new Lenis({ lerp: 0.075, wheelMultiplier: 0.9 });
+    const l = new Lenis({ lerp: 0.12, wheelMultiplier: 1 });
     lenis.current = l;
-    const root = document.documentElement;
-    const lb = [...document.querySelectorAll('.lb-item')];
-    let last = 0, desk = false, raf;
+    const q = (x) => document.querySelector(x);
+    const bg = q('.hero-bg'), stage = q('.stage'), logo = q('.hero-logo'), spot = q('.spot'), bar = q('.progress'), lbSec = q('#lookbook');
+    const lb = [...document.querySelectorAll('.lb-item')], shades = lb.map((el) => el.querySelector('.lb-shade'));
+    const hs = hsRef.current, tr = trackRef.current;
+    let last = 0, desk = false, raf, hidden = false, act = '', max = 1, hsH = 1, trW = 1;
     const mm = (e) => {
-      root.style.setProperty('--mx', e.clientX + 'px'); root.style.setProperty('--my', e.clientY + 'px');
-      root.style.setProperty('--tx', (e.clientX / innerWidth - 0.5).toFixed(3)); root.style.setProperty('--ty', (e.clientY / innerHeight - 0.5).toFixed(3));
+      if (scrollY > innerHeight) return;
+      const x = e.clientX / innerWidth - 0.5, y = e.clientY / innerHeight - 0.5;
+      logo.style.transform = `translate3d(${x * 34}px,${y * 22}px,0) rotateY(${x * 9}deg) rotateX(${-y * 9}deg)`;
+      spot.style.transform = `translate3d(${e.clientX}px,${e.clientY}px,0)`;
     };
-    if (matchMedia('(hover:hover) and (pointer:fine)').matches) window.addEventListener('mousemove', mm);
     const upd = (y) => {
-      root.style.setProperty('--sy', y);
-      root.style.setProperty('--p', (y / Math.max(1, root.scrollHeight - innerHeight)).toFixed(4));
-      if (y > last + 3 && y > 160) setHide(true); else if (y < last - 3 || y < 160) setHide(false);
+      const hsr = desk ? hs.getBoundingClientRect() : null;
+      const lbr = lbSec.getBoundingClientRect();
+      const tops = lbr.top < innerHeight && lbr.bottom > 0 ? lb.map((el) => el.getBoundingClientRect().top) : null;
+      bar.style.transform = `scaleX(${(y / max).toFixed(4)})`;
+      if (y < innerHeight * 1.2) { bg.style.transform = `translate3d(0,${y * 0.25}px,0)`; stage.style.transform = `translate3d(0,${-y * 0.12}px,0)`; }
+      const hd = y > last + 3 && y > 160 ? true : (y < last - 3 || y < 160) ? false : hidden;
+      if (hd !== hidden) { hidden = hd; setHide(hd); }
       if (Math.abs(y - last) > 3) last = y;
-      const hs = hsRef.current, tr = trackRef.current;
-      if (hs && desk) {
-        const r = hs.getBoundingClientRect(), pr = clamp(-r.top / (hs.offsetHeight - innerHeight));
-        tr.style.transform = `translate3d(${-pr * (tr.offsetWidth - innerWidth)}px,0,0)`;
-        hs.style.setProperty('--tp', pr.toFixed(3));
-      }
-      lb.forEach((el, i) => {
-        const nx = lb[i + 1], t = nx ? clamp(1 - nx.getBoundingClientRect().top / (innerHeight * 0.9)) : 0;
-        el.style.transform = `scale(${1 - 0.07 * t})`; el.style.filter = `brightness(${1 - 0.45 * t})`;
+      if (hsr) tr.style.transform = `translate3d(${-clamp(-hsr.top / (hsH - innerHeight)) * (trW - innerWidth)}px,0,0)`;
+      if (tops) lb.forEach((el, i) => {
+        const t = i + 1 < lb.length ? clamp(1 - tops[i + 1] / (innerHeight * 0.9)) : 0;
+        el.style.transform = `scale(${1 - 0.07 * t})`; shades[i].style.opacity = (0.45 * t).toFixed(3);
       });
-      let a = '';
-      ['collection', 'lookbook', 'drop'].forEach((id) => { const e = document.getElementById(id); if (e && e.getBoundingClientRect().top < innerHeight * 0.45) a = id; });
-      setActive((p) => (p === a ? p : a));
+      if (y < innerHeight * 0.5 && act) { act = ''; setActive(''); }
     };
     const size = () => {
-      const hs = hsRef.current, tr = trackRef.current;
       desk = matchMedia('(min-width:1025px)').matches;
       if (desk) hs.style.height = tr.offsetWidth - innerWidth + innerHeight + 'px'; else { hs.style.height = ''; tr.style.transform = ''; }
+      hsH = hs.offsetHeight; trW = tr.offsetWidth; max = Math.max(1, document.documentElement.scrollHeight - innerHeight);
       upd(window.scrollY);
     };
     l.on('scroll', ({ scroll }) => upd(scroll));
     const loop = (t) => { l.raf(t); raf = requestAnimationFrame(loop); };
     raf = requestAnimationFrame(loop);
     size(); window.addEventListener('resize', size); window.addEventListener('load', size);
+    if (matchMedia('(hover:hover) and (pointer:fine)').matches) window.addEventListener('mousemove', mm, { passive: true });
     const io = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && e.target.classList.add('in')), { threshold: 0.15 });
     document.querySelectorAll('[data-r],[data-s]').forEach((el) => io.observe(el));
-    return () => { cancelAnimationFrame(raf); l.destroy(); io.disconnect(); window.removeEventListener('resize', size); window.removeEventListener('load', size); window.removeEventListener('mousemove', mm); };
+    const sio = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting && act !== e.target.id) { act = e.target.id; setActive(act); } }), { rootMargin: '-45% 0px -55% 0px' });
+    ['collection', 'lookbook', 'drop'].forEach((id) => sio.observe(document.getElementById(id)));
+    // no long-press "save image" menu on touch, no image dragging
+    const noMenu = (e) => { if (!(e.target.closest && e.target.closest('input,textarea'))) e.preventDefault(); };
+    const noDrag = (e) => e.preventDefault();
+    if (matchMedia('(pointer:coarse)').matches) window.addEventListener('contextmenu', noMenu);
+    window.addEventListener('dragstart', noDrag);
+    return () => {
+      cancelAnimationFrame(raf); l.destroy(); io.disconnect(); sio.disconnect();
+      window.removeEventListener('resize', size); window.removeEventListener('load', size); window.removeEventListener('mousemove', mm);
+      window.removeEventListener('contextmenu', noMenu); window.removeEventListener('dragstart', noDrag);
+    };
   }, []);
 
   useEffect(() => {
@@ -268,20 +292,11 @@ export default function Page() {
     <>
       <div className="progress" />
 
-      {!gone && (
-        <div className={`pre ${ready ? 'done' : ''}`} aria-hidden="true">
-          <i className="pa" /><i className="pb" />
-          <div className="pc">
-            <Crest className="crown" />
-            <div className="pl-logo"><img src={LOGO} alt="" /><img className="fill" src={LOGO} alt="" style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }} /></div>
-            <div className="num">{pct}</div>
-          </div>
-        </div>
-      )}
+      {!gone && <Preloader ready={ready} onDone={() => setReady(true)} />}
 
       <header className={`nav ${hide && !menu ? 'hide' : ''}`}>
         <div className="pill">
-          <button className="logo" onClick={() => go(0)} aria-label="DEADSTOX home"><img src={LOGO} alt="DEADSTOX" /></button>
+          <button className="logo" onClick={() => go(0)} aria-label="DEADSTOX home"><img src={LOGO} alt="DEADSTOX" draggable={false} /></button>
           <nav className="links">
             {LINKS.map(([t, h]) => (
               <a key={t} href={h} className={`roll ${active === h.slice(1) ? 'on' : ''}`} data-t={t} onClick={(e) => { e.preventDefault(); go(h); }}><span>{t}</span></a>
@@ -302,7 +317,7 @@ export default function Page() {
         <section className="hero">
           <div className="hero-bg" /><Embers /><div className="spot" />
           <div className="stage">
-            <div className={`hero-logo ${R}`}><Crest className="crown" /><img src={LOGO} alt="DEADSTOX" /></div>
+            <div className={`hero-logo ${R}`}><Crest className="crown" /><img src={LOGO} alt="DEADSTOX" draggable={false} /></div>
           </div>
           <p className={`tag ${R}`}><span>Street royalty, made to last.</span></p>
           <div className={`hero-cta ${R}`}>
@@ -333,6 +348,7 @@ export default function Page() {
               <article className="lb-item" key={l.title} style={l.img ? { backgroundImage: `linear-gradient(90deg,rgba(8,4,5,.85),rgba(8,4,5,.15)),url(${l.img})` } : undefined}>
                 <div className="lb-text"><h3>{l.title}</h3><p>{l.line}</p><button className="cta ghost" onClick={(e) => open(p, e)}><span>View {p.name}</span></button></div>
                 <div className="lb-vis"><Visual p={p} /></div>
+                <span className="lb-shade" />
               </article>
             ); })}
           </div>
